@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyncBeat — Musique en même temps</title>
+<style>
+  :root {
+    --bg: #10131a;
+    --panel: #171b24;
+    --line: #262c3a;
+    --accent: #5ee6c8;
+    --accent-dim: #2b6e60;
+    --text: #eef1f6;
+    --text-dim: #8992a6;
+    --danger: #e6685e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px 16px 60px;
+  }
+  .wrap { max-width: 440px; margin: 0 auto; }
+  h1 {
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    margin: 4px 0 2px;
+  }
+  .sub {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 13px;
+    text-transform: none;
+    color: var(--text-dim);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  input[type=text], input[type=number] {
+    width: 100%;
+    background: #0d1017;
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 11px 12px;
+    border-radius: 9px;
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  input:focus { outline: none; border-color: var(--accent-dim); }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 9px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: #06231e; }
+  button.secondary { background: transparent; border: 1px solid var(--line); color: var(--text); }
+  button.ghost { background: transparent; color: var(--text-dim); border: none; text-decoration: underline; padding: 6px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .toggle-group { display: flex; gap: 8px; margin-bottom: 12px; }
+  .toggle-group button {
+    background: #0d1017;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+  .toggle-group button.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .status {
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: #0d1017;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    min-height: 18px;
+  }
+  .status.ok { color: var(--accent); }
+  .status.err { color: var(--danger); }
+  #player { width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; margin-bottom: 12px; background: #000; }
+  .hidden { display: none !important; }
+  .calib-taps { display: flex; gap: 10px; margin-bottom: 12px; }
+  .calib-taps button { padding: 20px 8px; font-size: 14px; }
+  .footnote { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 4px; }
+  .pill { display: inline-block; background: #0d1017; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SyncBeat</h1>
+  <div class="sub">Lancez la même musique au même instant, où que vous soyez.</div>
+
+  <!-- CONFIG SUPABASE -->
+  <div class="card" id="config-card">
+    <h2>Configuration (une seule fois)</h2>
+    <label>URL du projet Supabase</label>
+    <input type="text" id="cfg-url" placeholder="https://xxxxx.supabase.co">
+    <label>Clé anon (publique)</label>
+    <input type="text" id="cfg-key" placeholder="eyJhbGciOi...">
+    <button class="primary" id="cfg-save">Enregistrer</button>
+    <div class="footnote">Ces infos sont dans ton projet Supabase &gt; Project Settings &gt; API. Elles restent stockées uniquement sur ton téléphone.</div>
+  </div>
+
+  <!-- ROOM -->
+  <div class="card hidden" id="room-card">
+    <h2>Salon</h2>
+    <label>Code du salon (les deux entrez le même)</label>
+    <input type="text" id="room-code" placeholder="ex: teamboyz">
+    <label>Ton type de connexion audio</label>
+    <div class="toggle-group">
+      <button type="button" data-mode="wired" id="mode-wired">🔌 Filaire</button>
+      <button type="button" data-mode="bt" id="mode-bt">🎧 Bluetooth</button>
+    </div>
+    <button class="primary" id="join-btn">Rejoindre le salon</button>
+    <div class="status" id="room-status"></div>
+  </div>
+
+  <!-- CALIBRATION -->
+  <div class="card hidden" id="calib-card">
+    <h2>Calibration du délai (à faire une fois, l'un à côté de l'autre)</h2>
+    <button class="secondary" id="calib-start">Lancer le test (2 bips)</button>
+    <div class="status" id="calib-status">Approchez les deux téléphones, puis lancez le test.</div>
+    <div class="row calib-taps hidden" id="calib-taps">
+      <button type="button" id="tap-a">J'entends 🔌 Filaire</button>
+      <button type="button" id="tap-b">J'entends 🎧 Bluetooth</button>
+    </div>
+    <label>Délai à ajouter sur l'appareil filaire (ms)</label>
+    <div class="row">
+      <input type="number" id="offset-ms" value="0" min="0" max="2000">
+      <button class="secondary" id="offset-save" style="flex:0 0 90px;">OK</button>
+    </div>
+    <div class="footnote">Valeur typique d'un retard Bluetooth : 100 à 250 ms. Le test la calcule automatiquement pour toi.</div>
+  </div>
+
+  <!-- PLAYER -->
+  <div class="card hidden" id="player-card">
+    <h2>Musique <span class="pill" id="player-mode-pill"></span></h2>
+    <div class="row" style="margin-bottom:12px;">
+      <input type="text" id="yt-url" placeholder="Lien YouTube (ex: https://youtu.be/...)">
+    </div>
+    <div id="player"></div>
+    <div class="row">
+      <button class="primary" id="play-sync-btn">▶ Lancer pour les deux</button>
+      <button class="secondary" id="stop-sync-btn" style="flex:0 0 90px;">⏸</button>
+    </div>
+    <div class="status" id="play-status">En attente...</div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ---------- Config locale ----------
+const cfg = JSON.parse(localStorage.getItem('syncbeat-cfg') || '{}');
+const els = id => document.getElementById(id);
+
+if (cfg.url && cfg.key) {
+  els('cfg-url').value = cfg.url;
+  els('cfg-key').value = cfg.key;
+  els('room-card').classList.remove('hidden');
+}
+
+els('cfg-save').onclick = () => {
+  const url = els('cfg-url').value.trim();
+  const key = els('cfg-key').value.trim();
+  if (!url || !key) return alert('Renseigne les deux champs.');
+  localStorage.setItem('syncbeat-cfg', JSON.stringify({ url, key }));
+  els('room-card').classList.remove('hidden');
+  els('config-card').classList.add('hidden');
+};
+
+// ---------- Etat ----------
+let supabase = null;
+let channel = null;
+let myMode = localStorage.getItem('syncbeat-mode') || null; // 'wired' | 'bt'
+let ytPlayer = null;
+let ytReady = false;
+let pendingAutoplay = null;
+
+if (myMode) setModeUI(myMode);
+
+function setModeUI(mode) {
+  myMode = mode;
+  localStorage.setItem('syncbeat-mode', mode);
+  els('mode-wired').classList.toggle('active', mode === 'wired');
+  els('mode-bt').classList.toggle('active', mode === 'bt');
+}
+els('mode-wired').onclick = () => setModeUI('wired');
+els('mode-bt').onclick = () => setModeUI('bt');
+
+// Offset (uniquement pertinent pour l'appareil "wired")
+let offsetMs = parseInt(localStorage.getItem('syncbeat-offset') || '0', 10);
+els('offset-ms').value = offsetMs;
+els('offset-save').onclick = () => {
+  offsetMs = parseInt(els('offset-ms').value, 10) || 0;
+  localStorage.setItem('syncbeat-offset', offsetMs);
+  setStatus('calib-status', `Délai enregistré : ${offsetMs} ms.`, 'ok');
+};
+
+// ---------- Rejoindre un salon ----------
+els('join-btn').onclick = () => {
+  const room = els('room-code').value.trim();
+  if (!room) return alert('Entre un code de salon.');
+  if (!myMode) return alert('Choisis Filaire ou Bluetooth.');
+
+  const { createClient } = supabaseJs;
+  supabase = createClient(cfg.url, cfg.key);
+  channel = supabase.channel('room-' + room, { config: { broadcast: { self: false } } });
+
+  channel.on('broadcast', { event: 'play' }, ({ payload }) => {
+    schedulePlay(payload.videoId, payload.startAt, payload.seek || 0);
+  });
+  channel.on('broadcast', { event: 'stop' }, () => {
+    if (ytPlayer && ytReady) ytPlayer.pauseVideo();
+    setStatus('play-status', 'Mis en pause par ton pote.', '');
+  });
+  channel.on('broadcast', { event: 'test-beep' }, ({ payload }) => {
+    scheduleBeep(payload.startAt);
+  });
+
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      setStatus('room-status', `Connecté au salon "${room}" ✅`, 'ok');
+      els('calib-card').classList.remove('hidden');
+      els('player-card').classList.remove('hidden');
+      els('player-mode-pill').textContent = myMode === 'wired' ? '🔌 Filaire' : '🎧 Bluetooth';
+      initPlayer();
+    }
+  });
+};
+
+function setStatus(id, msg, cls) {
+  const el = els(id);
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+// ---------- Lecteur YouTube ----------
+function extractVideoId(url) {
+  const m = url.match(/(?:youtu\.be\/|v=|embed\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+let YTApiReady = false;
+window.onYouTubeIframeAPIReady = () => { YTApiReady = true; if (pendingInit) initPlayer(); };
+let pendingInit = false;
+const ytScript = document.createElement('script');
+ytScript.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytScript);
+
+function initPlayer() {
+  if (ytPlayer) return;
+  if (!YTApiReady) { pendingInit = true; return; }
+  ytPlayer = new YT.Player('player', {
+    height: '100%', width: '100%',
+    playerVars: { playsinline: 1, controls: 1 },
+    events: { onReady: () => { ytReady = true; } }
+  });
+}
+
+els('play-sync-btn').onclick = () => {
+  const url = els('yt-url').value.trim();
+  const videoId = extractVideoId(url);
+  if (!videoId) return alert('Lien YouTube invalide.');
+  const BUFFER_MS = 1500; // marge pour laisser le temps au message d'arriver partout
+  const startAt = Date.now() + BUFFER_MS;
+  channel.send({ type: 'broadcast', event: 'play', payload: { videoId, startAt, seek: 0 } });
+  schedulePlay(videoId, startAt, 0); // moi aussi
+};
+
+els('stop-sync-btn').onclick = () => {
+  if (ytPlayer && ytReady) ytPlayer.pauseVideo();
+  channel.send({ type: 'broadcast', event: 'stop', payload: {} });
+};
+
+function schedulePlay(videoId, startAt, seek) {
+  if (!ytReady) { setTimeout(() => schedulePlay(videoId, startAt, seek), 200); return; }
+  const myDelay = myMode === 'wired' ? offsetMs : 0;
+  const target = startAt + myDelay;
+  const wait = Math.max(0, target - Date.now());
+  setStatus('play-status', `Lecture dans ${(wait / 1000).toFixed(1)}s...`, '');
+  ytPlayer.cueVideoById(videoId, seek);
+  setTimeout(() => {
+    ytPlayer.seekTo(seek, true);
+    ytPlayer.playVideo();
+    setStatus('play-status', '▶ En lecture', 'ok');
+  }, wait);
+}
+
+// ---------- Calibration (bip synchronisé + mesure manuelle) ----------
+let audioCtx = null;
+function beep() {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.frequency.value = 880;
+  o.connect(g); g.connect(audioCtx.destination);
+  g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+  o.start();
+  o.stop(audioCtx.currentTime + 0.15);
+}
+
+function scheduleBeep(startAt) {
+  const wait = Math.max(0, startAt - Date.now());
+  setTimeout(beep, wait);
+}
+
+let tapStart = null;
+let tapA = null, tapB = null;
+
+els('calib-start').onclick = () => {
+  const startAt = Date.now() + 1000;
+  channel.send({ type: 'broadcast', event: 'test-beep', payload: { startAt } });
+  scheduleBeep(startAt);
+  tapStart = performance.now();
+  tapA = null; tapB = null;
+  els('calib-taps').classList.remove('hidden');
+  setStatus('calib-status', 'Écoutez... appuyez dès que vous entendez CHAQUE téléphone (dans l\'ordre où vous les entendez).', '');
+};
+
+els('tap-a').onclick = () => { tapA = performance.now() - tapStart; checkTaps(); };
+els('tap-b').onclick = () => { tapB = performance.now() - tapStart; checkTaps(); };
+
+function checkTaps() {
+  if (tapA === null || tapB === null) return;
+  const diff = Math.round(Math.abs(tapB - tapA));
+  // Le filaire (wired) sonne en théorie plus tôt. On calcule l'offset à donner au filaire.
+  if (tapB > tapA) {
+    // A (filaire) entendu avant B (bluetooth) -> normal
+    offsetMs = diff;
+  } else {
+    // ordre inverse improbable, on garde la valeur absolue
+    offsetMs = diff;
+  }
+  els('offset-ms').value = offsetMs;
+  localStorage.setItem('syncbeat-offset', offsetMs);
+  setStatus('calib-status', `Délai mesuré : ${diff} ms. Enregistré automatiquement sur l'appareil filaire.`, 'ok');
+  els('calib-taps').classList.add('hidden');
+}
+</script>
+</body>
+</html>
