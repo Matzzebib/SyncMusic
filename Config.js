@@ -4,6 +4,6 @@
 // activé par défaut)
 
 window.SYNCBEAT_CONFIG = {
-  supabaseUrl: "https://xxxxx.supabase.co",   // <-- remplace par l'URL de ton projet
-  supabaseAnonKey: "eyJhbGciOi..."            // <-- remplace par la clé "anon public"
+  supabaseUrl: "https://fzrnezghlksnlajffjic.supabase.co",   // <-- remplace par l'URL de ton projet
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6cm5lemdobGtzbmxhamZmamljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxOTMyMzcsImV4cCI6MjEwMzc2OTIzN30.QDqvEwzxJzPNYhabub7CAEbYVSI1YjrGL8Le1zee1F4"            // <-- remplace par la clé "anon public"
 };
